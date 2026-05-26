@@ -13,6 +13,7 @@ DEFAULT_CONFIG = {
     "window_width": 500,
     "window_height": 700,
     "window_opacity": 1.0,
+    "window_background_alpha": 255,
     "always_on_top": True,
     "frameless": True,
 

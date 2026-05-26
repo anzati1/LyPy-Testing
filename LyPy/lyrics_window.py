@@ -108,6 +108,7 @@ class RoundedGradientWidget(QWidget):
         self._colors = DEFAULT_GRADIENT
         self._radius = radius
         self._dim = 0          # 0-255 overlay darkness (0 = off)
+        self._bg_alpha = 255
         self.setAttribute(Qt.WA_TranslucentBackground)
 
     def set_gradient(self, colors: tuple[str, str, str]):
@@ -119,6 +120,10 @@ class RoundedGradientWidget(QWidget):
         self._dim = max(0, min(255, alpha))
         self.update()
 
+    def set_background_alpha(self, alpha: int):
+        self._bg_alpha = max(0, min(255, alpha))
+        self.update()
+
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
@@ -126,9 +131,16 @@ class RoundedGradientWidget(QWidget):
         path.addRoundedRect(0, 0, self.width(), self.height(),
                             self._radius, self._radius)
         grad = QLinearGradient(0, 0, 0, self.height())
-        grad.setColorAt(0.0, QColor(self._colors[0]))
-        grad.setColorAt(0.5, QColor(self._colors[1]))
-        grad.setColorAt(1.0, QColor(self._colors[2]))
+        top = QColor(self._colors[0])
+        mid = QColor(self._colors[1])
+        bottom = QColor(self._colors[2])
+        effective_alpha = self._bg_alpha if self._bg_alpha > 0 else 1
+        top.setAlpha(effective_alpha)
+        mid.setAlpha(effective_alpha)
+        bottom.setAlpha(effective_alpha)
+        grad.setColorAt(0.0, top)
+        grad.setColorAt(0.5, mid)
+        grad.setColorAt(1.0, bottom)
         p.fillPath(path, QBrush(grad))
         if self._dim > 0:
             p.fillPath(path, QBrush(QColor(0, 0, 0, self._dim)))
@@ -589,6 +601,9 @@ class SettingsPanel(QWidget):
         root.addSpacing(4)
         root.addWidget(self._slider_row(
             "Color saturation", 0, 100, config.get("bg_saturation", 80), "%", "sat"))
+        root.addSpacing(8)
+        root.addWidget(self._slider_row(
+            "Background alpha", 0, 255, config.get("window_background_alpha", 255), "", "alpha"))
 
         root.addSpacing(12)
 
@@ -657,6 +672,7 @@ class SettingsPanel(QWidget):
         self.config["font_size"] = self._size_slider.value()
         self.config["line_spacing"] = self._spacing_slider.value()
         self.config["bg_saturation"] = self._sat_slider.value()
+        self.config["window_background_alpha"] = self._alpha_slider.value()
         from config import save_config
         save_config(self.config)
         self.saved.emit()
@@ -681,6 +697,9 @@ class SettingsPanel(QWidget):
         sat = self.config.get("bg_saturation", 80)
         self._sat_slider.setValue(sat)
         self._sat_label.setText(f"{sat}%")
+        alpha = self.config.get("window_background_alpha", 255)
+        self._alpha_slider.setValue(alpha)
+        self._alpha_label.setText(f"{alpha}")
 
 
 # ─── Main lyrics window ─────────────────────────────────────────────────
@@ -765,6 +784,7 @@ class LyricsWindow(QMainWindow):
     # ── UI layout ────────────────────────────────────────────────
     def _init_ui(self):
         self.bg = RoundedGradientWidget(radius=CORNER_RADIUS)
+        self.bg.set_background_alpha(self.config.get("window_background_alpha", 255))
         self.setCentralWidget(self.bg)
 
         root = QVBoxLayout(self.bg)
@@ -1114,6 +1134,7 @@ class LyricsWindow(QMainWindow):
         self._refresh_styles()
         # Apply updated line spacing
         self.lyrics_layout.setSpacing(self.config.get("line_spacing", 3))
+        self.bg.set_background_alpha(self.config.get("window_background_alpha", 255))
         # Force gradient refresh with new saturation
         self.current_track_key = None
 
