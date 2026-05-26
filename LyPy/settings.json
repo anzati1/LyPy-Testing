@@ -10,6 +10,9 @@
   "bg_saturation": 100,
   "line_spacing": 8,
   "text_alignment": "right",
+  "lyrics_color_mode": "spotify_sync",
+  "manual_lyrics_color": "#ffffff",
+  "show_app_title": true,
   "polling_interval_ms": 50,
   "scroll_animation_ms": 400
 }

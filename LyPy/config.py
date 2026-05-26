@@ -57,6 +57,9 @@ DEFAULT_CONFIG = {
     "bg_saturation": 80,       # 0-100 slider for background color saturation
     "line_spacing": 3,         # 0-10 gap between lyric lines
     "text_alignment": "left",
+    "lyrics_color_mode": "spotify_sync",
+    "manual_lyrics_color": "#ffffff",
+    "show_app_title": True,
 
     # ── Behaviour ──
     "polling_interval_ms": 50,

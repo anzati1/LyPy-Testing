@@ -10,6 +10,11 @@ def _show_error(title: str, message: str):
 
 def main() -> int:
     try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("LyPy.Desktop")
+    except Exception:
+        pass
+
+    try:
         ensure_config_dir_writable()
     except Exception as exc:
         _show_error(

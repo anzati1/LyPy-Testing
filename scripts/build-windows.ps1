@@ -22,7 +22,9 @@ $requiredAssets = @(
     "btn_prev.png",
     "btn_play.png",
     "btn_pause.png",
-    "btn_next.png"
+    "btn_next.png",
+    "app_icon.png",
+    "app.ico"
 )
 
 foreach ($asset in $requiredAssets) {
@@ -57,7 +59,12 @@ New-Item -ItemType Directory -Path $releaseDist -Force | Out-Null
 
 $versionedExe = Join-Path $releaseDist ("LyPy-" + $Version + "-windows-x64.exe")
 Copy-Item -Path $builtExe -Destination $versionedExe -Force
-Copy-Item -Path $builtExe -Destination (Join-Path $releaseDist "LyPy-latest-windows-x64.exe") -Force
+$latestExe = Join-Path $releaseDist "LyPy-latest-windows-x64.exe"
+try {
+    Copy-Item -Path $builtExe -Destination $latestExe -Force
+} catch {
+    Write-Host "Skipped updating LyPy-latest-windows-x64.exe because it is locked."
+}
 
 Write-Host "Built executable:"
 Write-Host $versionedExe

@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QScrollArea, QPushButton, QApplication, QSizePolicy,
     QSlider, QComboBox, QGroupBox, QFormLayout, QStyleFactory,
+    QColorDialog, QCheckBox,
 )
 from PyQt5.QtCore import (
     Qt, QSize, QTimer, QPropertyAnimation, QEasingCurve, pyqtSignal, QRect, QPoint,
@@ -615,6 +616,32 @@ class SettingsPanel(QWidget):
             config.get("text_alignment", "left"),
             "text_align",
         ))
+        root.addSpacing(8)
+        root.addWidget(self._combo_row(
+            "Lyrics color",
+            [
+                ("spotify_sync", "Spotify sync"),
+                ("manual", "Manual"),
+            ],
+            config.get("lyrics_color_mode", "spotify_sync"),
+            "lyrics_color_mode",
+        ))
+        root.addSpacing(8)
+        root.addWidget(self._color_row(
+            "Manual color",
+            config.get("manual_lyrics_color", "#ffffff"),
+            "manual_lyrics_color",
+        ))
+        root.addSpacing(8)
+        root.addWidget(self._toggle_row(
+            "Show LyPy title",
+            bool(config.get("show_app_title", True)),
+            "show_app_title",
+        ))
+        self._lyrics_color_mode_combo.currentIndexChanged.connect(
+            self._update_manual_color_button_enabled
+        )
+        self._update_manual_color_button_enabled()
 
         root.addStretch(2)
 
@@ -726,6 +753,82 @@ class SettingsPanel(QWidget):
         setattr(self, f"_{attr}_combo", combo)
         return row
 
+    def _color_row(self, label: str, value: str, attr: str) -> QWidget:
+        row = QWidget()
+        row.setObjectName("settingRow")
+        row.setMinimumHeight(54)
+        h = QHBoxLayout(row)
+        h.setContentsMargins(14, 10, 14, 10)
+        h.setSpacing(12)
+
+        name_lbl = QLabel(label)
+        h.addWidget(name_lbl)
+        h.addStretch(1)
+
+        btn = QPushButton()
+        btn.setCursor(QCursor(Qt.PointingHandCursor))
+        btn.setMinimumWidth(120)
+        btn.clicked.connect(self._on_pick_manual_color)
+        h.addWidget(btn)
+
+        setattr(self, f"_{attr}_button", btn)
+        self._manual_lyrics_color = value
+        self._refresh_manual_color_button()
+        return row
+
+    def _toggle_row(self, label: str, checked: bool, attr: str) -> QWidget:
+        row = QWidget()
+        row.setObjectName("settingRow")
+        row.setMinimumHeight(54)
+        h = QHBoxLayout(row)
+        h.setContentsMargins(14, 10, 14, 10)
+        h.setSpacing(12)
+
+        name_lbl = QLabel(label)
+        h.addWidget(name_lbl)
+        h.addStretch(1)
+
+        toggle = QCheckBox()
+        toggle.setChecked(checked)
+        h.addWidget(toggle)
+
+        setattr(self, f"_{attr}_checkbox", toggle)
+        return row
+
+    def _normalize_hex_color(self, value: str) -> str:
+        color = QColor(value)
+        if not color.isValid():
+            return "#ffffff"
+        return color.name()
+
+    def _refresh_manual_color_button(self):
+        color_hex = self._normalize_hex_color(self._manual_lyrics_color)
+        color = QColor(color_hex)
+        text_color = "#000000" if color.lightness() > 140 else "#ffffff"
+        self._manual_lyrics_color = color_hex
+        self._manual_lyrics_color_button.setText(color_hex.upper())
+        self._manual_lyrics_color_button.setStyleSheet(
+            "QPushButton {"
+            f"background: {color_hex};"
+            f"color: {text_color};"
+            "border: none;"
+            "border-radius: 8px;"
+            "padding: 6px 10px;"
+            "font-weight: 600;"
+            "}"
+        )
+
+    def _on_pick_manual_color(self):
+        selected = QColorDialog.getColor(QColor(self._manual_lyrics_color), self, "Lyric color")
+        if not selected.isValid():
+            return
+        self._manual_lyrics_color = selected.name()
+        self._refresh_manual_color_button()
+
+    def _update_manual_color_button_enabled(self):
+        mode = self._lyrics_color_mode_combo.currentData()
+        self._manual_lyrics_color_button.setEnabled(mode == "manual")
+
     def _open_bug_report(self):
         QDesktopServices.openUrl(
             QUrl("https://github.com/YOUR_REPO/LyPy/issues"))
@@ -735,6 +838,9 @@ class SettingsPanel(QWidget):
         self.config["font_size"] = self._size_slider.value()
         self.config["line_spacing"] = self._spacing_slider.value()
         self.config["text_alignment"] = self._text_align_combo.currentData()
+        self.config["lyrics_color_mode"] = self._lyrics_color_mode_combo.currentData()
+        self.config["manual_lyrics_color"] = self._normalize_hex_color(self._manual_lyrics_color)
+        self.config["show_app_title"] = self._show_app_title_checkbox.isChecked()
         self.config["bg_saturation"] = self._sat_slider.value()
         self.config["window_background_alpha"] = self._alpha_slider.value()
         from config import save_config
@@ -761,6 +867,15 @@ class SettingsPanel(QWidget):
         text_align = self.config.get("text_alignment", "left")
         idx = self._text_align_combo.findData(text_align)
         self._text_align_combo.setCurrentIndex(idx if idx >= 0 else 0)
+        lyrics_color_mode = self.config.get("lyrics_color_mode", "spotify_sync")
+        idx = self._lyrics_color_mode_combo.findData(lyrics_color_mode)
+        self._lyrics_color_mode_combo.setCurrentIndex(idx if idx >= 0 else 0)
+        self._manual_lyrics_color = self._normalize_hex_color(
+            str(self.config.get("manual_lyrics_color", "#ffffff"))
+        )
+        self._refresh_manual_color_button()
+        self._show_app_title_checkbox.setChecked(bool(self.config.get("show_app_title", True)))
+        self._update_manual_color_button_enabled()
         sat = self.config.get("bg_saturation", 80)
         self._sat_slider.setValue(sat)
         self._sat_label.setText(f"{sat}%")
@@ -867,6 +982,7 @@ class LyricsWindow(QMainWindow):
         self.title_bar.prev_clicked.connect(self._media_prev)
         self.title_bar.play_pause_clicked.connect(self._media_play_pause)
         self.title_bar.next_clicked.connect(self._media_next)
+        self._apply_title_visibility()
         root.addWidget(self.title_bar)
 
         # Scrollable lyrics area
@@ -1048,6 +1164,8 @@ class LyricsWindow(QMainWindow):
     def _set_gradient(self, colors: tuple[str, str, str]):
         self._gradient = colors
         self.bg.set_gradient(colors)
+        if self.config.get("lyrics_color_mode") == "spotify_sync" and self.lyric_labels:
+            self._refresh_styles()
 
     def _on_thumbnail_ready(self, track_key: str, thumb_bytes: bytes | None):
         """Called from background thread when thumbnail fetch completes.
@@ -1199,6 +1317,10 @@ class LyricsWindow(QMainWindow):
     def _on_settings_saved(self):
         """Apply config changes after save."""
         self._normalize_text_alignment_config()
+        self._normalize_lyrics_color_mode_config()
+        self._normalize_manual_lyrics_color_config()
+        self._normalize_show_app_title_config()
+        self._apply_title_visibility()
         self._refresh_styles()
         self._relayout_labels()
         # Apply updated line spacing
@@ -1224,6 +1346,21 @@ class LyricsWindow(QMainWindow):
             align = "left"
         self.config["text_alignment"] = align
 
+    def _normalize_lyrics_color_mode_config(self):
+        mode = str(self.config.get("lyrics_color_mode", "spotify_sync")).lower().strip()
+        if mode not in {"manual", "spotify_sync"}:
+            mode = "spotify_sync"
+        self.config["lyrics_color_mode"] = mode
+
+    def _normalize_manual_lyrics_color_config(self):
+        color = QColor(str(self.config.get("manual_lyrics_color", "#ffffff")))
+        if not color.isValid():
+            color = QColor("#ffffff")
+        self.config["manual_lyrics_color"] = color.name()
+
+    def _normalize_show_app_title_config(self):
+        self.config["show_app_title"] = bool(self.config.get("show_app_title", True))
+
     def _text_alignment_flags(self) -> Qt.Alignment:
         self._normalize_text_alignment_config()
         align = self.config["text_alignment"]
@@ -1246,6 +1383,36 @@ class LyricsWindow(QMainWindow):
         pad = self._label_vertical_padding()
         lbl.setContentsMargins(4, pad, 4, pad)
 
+    def _apply_title_visibility(self):
+        self._normalize_show_app_title_config()
+        self.title_bar.title.setVisible(self.config["show_app_title"])
+
+    def _lyric_base_rgb(self) -> tuple[int, int, int]:
+        self._normalize_lyrics_color_mode_config()
+        if self.config["lyrics_color_mode"] == "manual":
+            self._normalize_manual_lyrics_color_config()
+            color = QColor(self.config["manual_lyrics_color"])
+            return (color.red(), color.green(), color.blue())
+        gradient_color = QColor(self._gradient[0])
+        if not gradient_color.isValid():
+            gradient_color = QColor("#ffffff")
+        r = gradient_color.red()
+        g = gradient_color.green()
+        b = gradient_color.blue()
+        r = int(r * 0.35 + 255 * 0.65)
+        g = int(g * 0.35 + 255 * 0.65)
+        b = int(b * 0.35 + 255 * 0.65)
+        h, s, v = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
+        s = max(0.12, min(0.55, s))
+        v = max(0.88, v)
+        rr, gg, bb = colorsys.hsv_to_rgb(h, s, v)
+        return (int(rr * 255), int(gg * 255), int(bb * 255))
+
+    def _lyric_rgba(self, alpha: float) -> str:
+        r, g, b = self._lyric_base_rgb()
+        a = max(0.0, min(1.0, alpha))
+        return f"rgba({r}, {g}, {b}, {a:.3f})"
+
     @staticmethod
     def _quit():
         QApplication.quit()
@@ -1255,7 +1422,7 @@ class LyricsWindow(QMainWindow):
         ff = self.config["font_family"]
         fs = self.config["font_size"]
         return (
-            f"color: rgba(255, 255, 255, 1.0);"
+            f"color: {self._lyric_rgba(1.0)};"
             f"font-family: {ff};"
             f"font-size: {fs}px;"
             "font-weight: bold;"
@@ -1266,7 +1433,7 @@ class LyricsWindow(QMainWindow):
         ff = self.config["font_family"]
         fs = self.config["font_size"]
         return (
-            f"color: rgba(255, 255, 255, 0.55);"
+            f"color: {self._lyric_rgba(0.62)};"
             f"font-family: {ff};"
             f"font-size: {fs}px;"
             "font-weight: bold;"
@@ -1277,7 +1444,7 @@ class LyricsWindow(QMainWindow):
         ff = self.config["font_family"]
         fs = self.config["font_size"]
         return (
-            f"color: rgba(255, 255, 255, 0.40);"
+            f"color: {self._lyric_rgba(0.40)};"
             f"font-family: {ff};"
             f"font-size: {fs}px;"
             "font-weight: bold;"

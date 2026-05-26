@@ -9,3 +9,4 @@ dist/
 LyPy/build/
 LyPy/dist/
 *.spec
+!LyPy/lypy.spec
