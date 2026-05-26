@@ -6,6 +6,7 @@ smooth scrolling, and edge-resize support for frameless windows.
 
 import io
 import os
+import sys
 import colorsys
 import ctypes
 from ctypes import wintypes
@@ -43,6 +44,15 @@ HTTOPRIGHT = 14
 HTBOTTOM = 15
 HTBOTTOMLEFT = 16
 HTBOTTOMRIGHT = 17
+
+
+def _resource_base_dir() -> str:
+    if getattr(sys, "frozen", False):
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            return meipass
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.abspath(__file__))
 
 
 def _dominant_color_from_bytes(image_bytes: bytes) -> tuple[int, int, int] | None:
@@ -199,7 +209,7 @@ class TitleBar(QWidget):
         layout.addWidget(self.pin_btn)
 
         # ── Resolve asset directory (same folder as this file) ──
-        _here = os.path.dirname(os.path.abspath(__file__))
+        _here = _resource_base_dir()
         def _icon(name: str) -> QIcon:
             path = os.path.join(_here, "assets", f"{name}.png")
             pix = QPixmap(path)

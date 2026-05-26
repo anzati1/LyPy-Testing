@@ -57,7 +57,21 @@ LyPy works with any app that registers with the Windows Media Transport Controls
 
 ---
 
+## Download (No Python Required)
+
+You can download prebuilt Windows executables from [GitHub Releases](https://github.com/anzati1/LyPy-Testing/releases).
+
+Release assets include:
+
+- `LyPy-vX.Y.Z-windows-x64.exe`
+
+Run the `.exe` directly.
+
+---
+
 ## Setup
+
+For contributors and local development:
 
 ### 1. Install dependencies
 

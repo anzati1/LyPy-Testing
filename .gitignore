@@ -1,1 +1,11 @@
-/LyPy/__pycache__
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+.venv-build/
+build/
+dist/
+LyPy/build/
+LyPy/dist/
+*.spec
