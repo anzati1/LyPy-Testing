@@ -9,6 +9,7 @@
   "font_family": "Segoe UI, Circular, Helvetica, Arial, sans-serif",
   "bg_saturation": 100,
   "line_spacing": 8,
+  "text_alignment": "right",
   "polling_interval_ms": 50,
   "scroll_animation_ms": 400
 }

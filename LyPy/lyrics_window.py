@@ -593,6 +593,18 @@ class SettingsPanel(QWidget):
         root.addSpacing(8)
         root.addWidget(self._slider_row(
             "Line spacing", 0, 10, config.get("line_spacing", 3), "px", "spacing"))
+        root.addSpacing(8)
+        root.addWidget(self._combo_row(
+            "Text alignment",
+            [
+                ("left", "Left"),
+                ("center", "Center"),
+                ("right", "Right"),
+                ("justify", "Justify"),
+            ],
+            config.get("text_alignment", "left"),
+            "text_align",
+        ))
 
         root.addStretch(2)
 
@@ -663,6 +675,47 @@ class SettingsPanel(QWidget):
         setattr(self, f"_{attr}_label", val_lbl)
         return row
 
+    def _combo_row(self, label: str, options: list[tuple[str, str]],
+                   value: str, attr: str) -> QWidget:
+        row = QWidget()
+        row.setObjectName("settingRow")
+        row.setMinimumHeight(54)
+        h = QHBoxLayout(row)
+        h.setContentsMargins(14, 10, 14, 10)
+        h.setSpacing(12)
+
+        name_lbl = QLabel(label)
+        h.addWidget(name_lbl)
+
+        combo = QComboBox()
+        combo.setCursor(QCursor(Qt.PointingHandCursor))
+        combo.setStyleSheet(
+            "QComboBox {"
+            "  background: rgba(255,255,255,0.08);"
+            "  color: rgba(255,255,255,0.95);"
+            "  border: none;"
+            "  border-radius: 8px;"
+            "  padding: 6px 28px 6px 10px;"
+            "  min-width: 120px;"
+            "}"
+            "QComboBox::drop-down { border: none; width: 24px; }"
+            "QComboBox::down-arrow { width: 10px; height: 10px; }"
+            "QComboBox QAbstractItemView {"
+            "  background: #1f1f1f;"
+            "  color: #ffffff;"
+            "  border: 1px solid rgba(255,255,255,0.15);"
+            "  selection-background-color: rgba(255,255,255,0.18);"
+            "}"
+        )
+        for key, text in options:
+            combo.addItem(text, key)
+        idx = combo.findData(value)
+        combo.setCurrentIndex(idx if idx >= 0 else 0)
+        h.addWidget(combo)
+
+        setattr(self, f"_{attr}_combo", combo)
+        return row
+
     def _open_bug_report(self):
         QDesktopServices.openUrl(
             QUrl("https://github.com/YOUR_REPO/LyPy/issues"))
@@ -671,6 +724,7 @@ class SettingsPanel(QWidget):
         """Autosave then close."""
         self.config["font_size"] = self._size_slider.value()
         self.config["line_spacing"] = self._spacing_slider.value()
+        self.config["text_alignment"] = self._text_align_combo.currentData()
         self.config["bg_saturation"] = self._sat_slider.value()
         self.config["window_background_alpha"] = self._alpha_slider.value()
         from config import save_config
@@ -694,6 +748,9 @@ class SettingsPanel(QWidget):
         sp = self.config.get("line_spacing", 3)
         self._spacing_slider.setValue(sp)
         self._spacing_label.setText(f"{sp}px")
+        text_align = self.config.get("text_alignment", "left")
+        idx = self._text_align_combo.findData(text_align)
+        self._text_align_combo.setCurrentIndex(idx if idx >= 0 else 0)
         sat = self.config.get("bg_saturation", 80)
         self._sat_slider.setValue(sat)
         self._sat_label.setText(f"{sat}%")
@@ -815,7 +872,7 @@ class LyricsWindow(QMainWindow):
         self.lyrics_container = QWidget()
         self.lyrics_container.setStyleSheet("background: transparent;")
         self.lyrics_layout = QVBoxLayout(self.lyrics_container)
-        self.lyrics_layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self.lyrics_layout.setAlignment(Qt.AlignTop)
         self.lyrics_layout.setSpacing(self.config.get("line_spacing", 3))
         self.lyrics_layout.setContentsMargins(24, 20, 24, 250)
         self.scroll_area.setWidget(self.lyrics_container)
@@ -1013,7 +1070,7 @@ class LyricsWindow(QMainWindow):
         self._clear_labels()
         idle = WordWrapLabel("Play something\u2026")
         idle.setStyleSheet(self._css_inactive())
-        idle.setAlignment(Qt.AlignLeft)
+        self._apply_label_layout(idle)
         self.lyrics_layout.addWidget(idle)
         self.lyric_labels.append(idle)
 
@@ -1026,7 +1083,7 @@ class LyricsWindow(QMainWindow):
             "To avoid sync bugs, please play music in only one app."
         )
         warning.setStyleSheet(self._css_inactive())
-        warning.setAlignment(Qt.AlignLeft)
+        self._apply_label_layout(warning)
         self.lyrics_layout.addWidget(warning)
         self.lyric_labels.append(warning)
 
@@ -1037,7 +1094,7 @@ class LyricsWindow(QMainWindow):
         if not self.current_lyrics or not self.current_lyrics["lines"]:
             lbl = WordWrapLabel("No lyrics available")
             lbl.setStyleSheet(self._css_inactive())
-            lbl.setAlignment(Qt.AlignLeft)
+            self._apply_label_layout(lbl)
             self.lyrics_layout.addWidget(lbl)
             self.lyric_labels.append(lbl)
             return
@@ -1046,7 +1103,7 @@ class LyricsWindow(QMainWindow):
             text = line["words"].strip()
             lbl = WordWrapLabel(text if text else " ")
             lbl.setStyleSheet(self._css_inactive())
-            lbl.setAlignment(Qt.AlignLeft)
+            self._apply_label_layout(lbl)
             self.lyrics_layout.addWidget(lbl)
             self.lyric_labels.append(lbl)
 
@@ -1131,7 +1188,9 @@ class LyricsWindow(QMainWindow):
 
     def _on_settings_saved(self):
         """Apply config changes after save."""
+        self._normalize_text_alignment_config()
         self._refresh_styles()
+        self._relayout_labels()
         # Apply updated line spacing
         self.lyrics_layout.setSpacing(self.config.get("line_spacing", 3))
         self.bg.set_background_alpha(self.config.get("window_background_alpha", 255))
@@ -1147,6 +1206,35 @@ class LyricsWindow(QMainWindow):
                 lbl.setStyleSheet(self._css_active())
             else:
                 lbl.setStyleSheet(self._css_inactive())
+            self._apply_label_layout(lbl)
+
+    def _normalize_text_alignment_config(self):
+        align = str(self.config.get("text_alignment", "left")).lower().strip()
+        if align not in {"left", "center", "right", "justify"}:
+            align = "left"
+        self.config["text_alignment"] = align
+
+    def _text_alignment_flags(self) -> Qt.Alignment:
+        self._normalize_text_alignment_config()
+        align = self.config["text_alignment"]
+        if align == "center":
+            horizontal = Qt.AlignHCenter
+        elif align == "right":
+            horizontal = Qt.AlignRight
+        elif align == "justify":
+            horizontal = Qt.AlignJustify
+        else:
+            horizontal = Qt.AlignLeft
+        return horizontal | Qt.AlignTop
+
+    def _label_vertical_padding(self) -> int:
+        sp = self.config.get("line_spacing", 3)
+        return max(2, sp + 2)
+
+    def _apply_label_layout(self, lbl: QLabel):
+        lbl.setAlignment(self._text_alignment_flags())
+        pad = self._label_vertical_padding()
+        lbl.setContentsMargins(4, pad, 4, pad)
 
     @staticmethod
     def _quit():
@@ -1156,42 +1244,33 @@ class LyricsWindow(QMainWindow):
     def _css_active(self) -> str:
         ff = self.config["font_family"]
         fs = self.config["font_size"]
-        sp = self.config.get("line_spacing", 3)
-        pad = max(2, sp + 2)
         return (
             f"color: rgba(255, 255, 255, 1.0);"
             f"font-family: {ff};"
             f"font-size: {fs}px;"
             "font-weight: bold;"
-            f"padding: {pad}px 4px;"
             "background: transparent;"
         )
 
     def _css_past(self) -> str:
         ff = self.config["font_family"]
         fs = self.config["font_size"]
-        sp = self.config.get("line_spacing", 3)
-        pad = max(2, sp + 2)
         return (
             f"color: rgba(255, 255, 255, 0.55);"
             f"font-family: {ff};"
             f"font-size: {fs}px;"
             "font-weight: bold;"
-            f"padding: {pad}px 4px;"
             "background: transparent;"
         )
 
     def _css_inactive(self) -> str:
         ff = self.config["font_family"]
         fs = self.config["font_size"]
-        sp = self.config.get("line_spacing", 3)
-        pad = max(2, sp + 2)
         return (
             f"color: rgba(255, 255, 255, 0.40);"
             f"font-family: {ff};"
             f"font-size: {fs}px;"
             "font-weight: bold;"
-            f"padding: {pad}px 4px;"
             "background: transparent;"
         )
 
